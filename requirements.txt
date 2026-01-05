@@ -1,0 +1,11 @@
+jupyterlab==3.6.3
+ipykernel==6.30.1
+numpy==2.3.3
+pandas==2.2.3
+scipy==1.16.1
+matplotlib==3.10.6
+seaborn==0.13.2
+statsmodels==0.14.5
+scikit-learn==1.7.2
+ipympl==0.9.3
+

@@ -1,0 +1,244 @@
+name: Test in different OS
+
+# === Events ===
+on:
+  workflow_dispatch: {}   # manual trigger (no inputs)
+  # push:
+  #   branches: [ main ]
+  #   paths: [ requirements.txt ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  LOG_NOTEBOOK: "[NB]"
+  LOG_SETUP: "[SETUP]"
+  LOG_TEST: "[TEST]"
+
+jobs:
+
+  # =========================
+  # Ubuntu
+  # =========================
+  Test_under_ubuntu:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-24.04 ]
+        python-version: ["3.11.3","3.12","3.13"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix['python-version'] }}
+          check-latest: true
+          cache: pip
+
+      - name: Create import_libraries_test.py from Notebooks
+        run: |
+          echo "$LOG_NOTEBOOK Scanning notebooks for imports..."
+          chmod +x .github/workflows/REGX_test_import_libraries.sh
+          ./.github/workflows/REGX_test_import_libraries.sh
+          echo "$LOG_NOTEBOOK Notebook import list generated."
+
+      - name: Install dependencies
+        run: |
+          echo "$LOG_SETUP Python + venv setup (Linux/macOS style)"
+          python --version
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip list
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          echo "$LOG_SETUP Dependencies installed."
+
+      - name: Test the import libraries
+        run: |
+          source .venv/bin/activate
+          ./.github/workflows/REGX_test_import_libraries.sh
+          echo "$LOG_TEST Running pytest on Ubuntu..."
+          python -m pip install pytest
+          pytest ./.github/workflows/testing/test_import_libraries.py -q
+          echo "$LOG_TEST Ubuntu tests passed."
+
+
+  # =========================
+  # Windows
+  # =========================
+  Test_under_windows:
+    defaults:
+      run:
+        shell: bash   # ensure Bash on Windows
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ windows-2022, windows-2025 ]
+        python-version: ["3.11.3","3.12","3.13"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix['python-version'] }}
+          check-latest: true
+          cache: pip
+
+      - name: Create import_libraries_test.py from Notebooks
+        run: |
+          echo "$LOG_NOTEBOOK Scanning notebooks for imports..."
+          chmod +x .github/workflows/REGX_test_import_libraries.sh
+          ./.github/workflows/REGX_test_import_libraries.sh
+          echo "$LOG_NOTEBOOK Notebook import list generated."
+
+      - name: Install dependencies
+        run: |
+          echo "$LOG_SETUP Python + venv setup (Windows + Git Bash style)"
+          echo "Note: Commands run under Bash (not PowerShell)."
+          python --version
+          python -m venv .venv
+          source .venv/Scripts/activate
+          python -m pip install --upgrade pip
+          pip list
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          echo "$LOG_SETUP Dependencies installed."
+
+      - name: Test the import libraries
+        run: |
+          echo "Note: Commands run under Bash (not PowerShell)."
+          source .venv/Scripts/activate
+          ./.github/workflows/REGX_test_import_libraries.sh
+          echo "$LOG_TEST Running pytest on Windows..."
+          python -m pip install pytest
+          pytest ./.github/workflows/testing/test_import_libraries.py -q
+          echo "$LOG_TEST Windows tests passed."
+
+
+  # =========================
+  # macOS (Intel only)
+  # =========================
+  Test_under_macos:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-13 ]   # Intel
+        python-version: ["3.11.3","3.12","3.13"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Print runner info
+        run: |
+          echo "$LOG_SETUP Runner: ${{ runner.os }} ${{ runner.arch }}"
+          sw_vers
+          uname -m
+          python -V
+
+      # Assert Intel arch to avoid surprises
+      - name: Ensure Intel (x86_64)
+        run: |
+          [[ "$(uname -m)" == "x86_64" ]] || { echo "Expected x86_64 on macos-13"; exit 1; }
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix['python-version'] }}
+          check-latest: true
+          cache: pip
+
+      - name: Create import_libraries_test.py from Notebooks
+        run: |
+          echo "$LOG_NOTEBOOK Scanning notebooks for imports..."
+          chmod +x .github/workflows/REGX_test_import_libraries.sh
+          ./.github/workflows/REGX_test_import_libraries.sh
+          echo "$LOG_NOTEBOOK Notebook import list generated."
+
+      - name: Install dependencies
+        run: |
+          echo "$LOG_SETUP Python + venv setup (Linux/macOS style)"
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip list
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          echo "$LOG_SETUP Dependencies installed."
+
+      - name: Test the import libraries
+        run: |
+          source .venv/bin/activate
+          ./.github/workflows/REGX_test_import_libraries.sh
+          echo "$LOG_TEST Running pytest on macOS (Intel)..."
+          python -m pip install pytest
+          pytest ./.github/workflows/testing/test_import_libraries.py -q
+          echo "$LOG_TEST macOS (Intel) tests passed."
+
+
+  # =========================
+  # macOS (Apple Silicon)
+  # =========================
+  Test_under_macos_Silicon:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ macos-14, macos-15 ]   # Apple Silicon
+        python-version: ["3.11.3","3.12","3.13"]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Print runner info
+        run: |
+          echo "$LOG_SETUP Runner: ${{ runner.os }} ${{ runner.arch }}"
+          sw_vers
+          uname -m
+          python -V
+
+      # Assert Apple Silicon arch
+      - name: Ensure Apple Silicon (arm64)
+        run: |
+          [[ "$(uname -m)" == "arm64" ]] || { echo "Expected arm64 on macOS Silicon (matrix.os=${{ matrix.os }})"; exit 1; }
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix['python-version'] }}
+          check-latest: true
+          cache: pip
+
+      - name: Create import_libraries_test.py from Notebooks
+        run: |
+          echo "$LOG_NOTEBOOK Scanning notebooks for imports..."
+          chmod +x .github/workflows/REGX_test_import_libraries.sh
+          ./.github/workflows/REGX_test_import_libraries.sh 
+          echo "$LOG_NOTEBOOK Notebook import list generated."
+
+      - name: Install dependencies
+        run: |
+          echo "$LOG_SETUP Python + venv setup (Linux/macOS style)"
+          python -m venv .venv
+          source .venv/bin/activate
+          python -m pip install --upgrade pip
+          pip list
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          echo "$LOG_SETUP Dependencies installed."
+
+      - name: Test the import libraries
+        run: |
+          source .venv/bin/activate
+          ./.github/workflows/REGX_test_import_libraries.sh
+          echo "$LOG_TEST Running pytest on macOS (Apple Silicon)..."
+          python -m pip install pytest
+          pytest ./.github/workflows/testing/test_import_libraries.py -q
+          echo "$LOG_TEST macOS (Apple Silicon) tests passed."
